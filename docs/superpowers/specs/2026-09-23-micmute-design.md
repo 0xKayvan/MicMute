@@ -22,8 +22,9 @@ Out of scope: per-app mute, on-screen HUD, Windows/Linux, App Store distribution
 
 - macOS 13+ (needed for `SMAppService`). UI is AppKit `NSStatusItem`.
 - Swift 6 via SwiftPM; **no Xcode required**. A `Makefile` builds the executable, assembles `MicMute.app` (Info.plist with `LSUIElement=YES`, `NSMicrophoneUsageDescription`), and ad-hoc codesigns it.
-- Dependency: `sindresorhus/KeyboardShortcuts` (hotkey recorder + Carbon hotkeys, key-down/key-up, no Accessibility permission).
-- Stream Deck plugin: TypeScript, `@elgato/streamdeck` SDK v2 (Node 20 runtime), built with Rollup, managed with `@elgato/cli`.
+- No third-party Swift dependencies. Global hotkeys use Carbon `RegisterEventHotKey` (key-down + key-up, no Accessibility permission) with a small custom shortcut recorder. (`KeyboardShortcuts` was rejected: it uses `#Preview`, which fails to build without Xcode.)
+- `swift test` on Command Line Tools needs `-F/-rpath` to `CommandLineTools/Library/Developer/Frameworks` for Swift Testing; the Makefile adds these.
+- Stream Deck plugin: TypeScript, `@elgato/streamdeck` v3 (manifest `SDKVersion: 2`, Node.js 24 runtime, Stream Deck 7.1+), built with Rollup, managed with `@elgato/cli`.
 
 ## Architecture
 
@@ -43,8 +44,9 @@ Out of scope: per-app mute, on-screen HUD, Windows/Linux, App Store distribution
 ### AudioSystem (protocol) / CoreAudioSystem
 
 Thin wrapper over CoreAudio HAL, the only code touching `AudioObject*` APIs:
-- `inputDevices() -> [AudioDevice]` — devices with input-scope streams.
-- Per device: `name`, `uid`, `canMute`, `isMuted`, `setMuted(_:)`, `canSetVolume`, `volume`, `setVolume(_:)`.
+- `inputDeviceIDs() -> [DeviceID]` — devices with input-scope channels.
+- Per device ID: `name`, `uid`, `canSetMute`, `isMuted`, `setMuted`, `canSetVolume`, `volume`, `setVolume`.
+- `onChange` callback (main queue): device list changed or any input device's mute/volume changed.
   - Mute uses `kAudioDevicePropertyMute`, input scope, main element; if main element unsupported, per-channel elements 1…n.
   - Volume uses `kAudioDevicePropertyVolumeScalar`, same element strategy.
 - Change callbacks: device list changed (`kAudioHardwarePropertyDevices`), and per-device mute/volume changed.
@@ -66,7 +68,9 @@ Single source of truth; all triggers route here.
 - Effective muted = `isMuted && !pttActive`.
 - `toggle()`, `setMuted(_:)`, `pttBegin()`, `pttEnd()`.
 - On effective-state change: call `MicController.apply`, play feedback, notify observers (status item, bridge).
-- Initial state on launch: unmuted (app does not change devices until the user acts). Persist nothing about mute across launches.
+- Initial state on launch: muted if every controllable input device is already muted (e.g. left over from a crash), otherwise unmuted; the app does not change devices at launch unless starting muted.
+- Quitting the app unmutes all devices, so mics are never left muted without the app running.
+- PTT is tracked per source (hotkey, each bridge client), so overlapping holds don't cut each other off.
 
 ### StatusItem
 
@@ -96,11 +100,11 @@ Small SwiftUI window hosted in `NSWindow`:
 ## Stream Deck plugin
 
 UUID `xyz.kayvan.micmute`, folder `streamdeck/xyz.kayvan.micmute.sdPlugin`.
-- `BridgeClient`: WebSocket client (Node 20 global `WebSocket` / `ws`), auto-reconnect every 2 s, emits state; `connected` flag.
+- `BridgeClient`: WebSocket client (Node global `WebSocket`), auto-reconnect every 2 s, emits state (`null` = disconnected).
 - Action `xyz.kayvan.micmute.toggle`: keyDown → `toggle`. Two states (live / muted images). When disconnected, title "Off" and live image with alert.
 - Action `xyz.kayvan.micmute.ptt`: keyDown → `ptt down`, keyUp → `ptt up`. Shows the same state.
 - All visible action instances update on each state message.
-- Icons: simple SVGs (mic / slashed mic).
+- Icons: SVG key/action images (mic / slashed mic); the plugin icon is a PNG (manifest requires `.png`, 256 px), rendered by a Swift script.
 
 ## Error handling
 
