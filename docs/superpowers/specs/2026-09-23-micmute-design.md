@@ -93,6 +93,7 @@ Small SwiftUI window hosted in `NSWindow`:
 ### BridgeServer
 
 - `NWListener` with `NWProtocolWebSocket`, bound to `127.0.0.1:52836` only.
+- Handshakes carrying an `Origin` header (i.e. from web browsers) are refused by a framer below the WebSocket layer, so web pages cannot drive the bridge; the plugin's Node client sends none.
 - Client → app (JSON text frames): `{"type":"toggle"}`, `{"type":"mute"}`, `{"type":"unmute"}`, `{"type":"ptt","down":true|false}`, `{"type":"get"}`.
 - App → client: `{"type":"state","muted":<effective>,"pttActive":<bool>}` on connect, after every change, and in reply to `get`.
 - Unknown/malformed messages are ignored. PTT is released automatically if the client that began it disconnects.

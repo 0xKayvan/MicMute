@@ -42,6 +42,8 @@ public final class BridgeServer {
         websocket.autoReplyPing = true
         let parameters = NWParameters.tcp
         parameters.defaultProtocolStack.applicationProtocols.insert(websocket, at: 0)
+        // Below WebSocket, above TCP: refuses browser handshakes (see OriginGuard).
+        parameters.defaultProtocolStack.applicationProtocols.insert(NWProtocolFramer.Options(definition: OriginGuard.definition), at: 1)
         parameters.requiredInterfaceType = .loopback
         parameters.allowLocalEndpointReuse = true
 
