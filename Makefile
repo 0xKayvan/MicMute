@@ -42,4 +42,5 @@ plugin-test:
 	cd streamdeck && npm test
 
 plugin-link: plugin
-	cd streamdeck && (npm run link || true) && npm run restart
+	@if [ ! -e "$(HOME)/Library/Application Support/com.elgato.StreamDeck/Plugins/xyz.kayvan.micmute.sdPlugin" ]; then cd streamdeck && npm run link; fi
+	cd streamdeck && npm run restart

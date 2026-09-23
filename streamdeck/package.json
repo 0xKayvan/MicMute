@@ -13,10 +13,10 @@
     "pack": "streamdeck pack xyz.kayvan.micmute.sdPlugin --output dist"
   },
   "dependencies": {
-    "@elgato/streamdeck": "^3.0.0",
-    "@elgato/utils": "0.6.0"
+    "@elgato/streamdeck": "^3.0.0"
   },
   "devDependencies": {
+    "@elgato/utils": "0.6.0",
     "@elgato/cli": "^1.10.0",
     "@rollup/plugin-commonjs": "^29.0.3",
     "@rollup/plugin-node-resolve": "^16.0.3",
