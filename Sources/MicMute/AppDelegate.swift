@@ -12,6 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var bridge: BridgeServer!
     private var statusItem: StatusItemController!
     private var feedback: Feedback!
+    private let hotkeys = HotkeyManager()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let mic = MicController(audio: CoreAudioSystem())
@@ -47,11 +48,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             log.error("Bridge failed to start: \(error.localizedDescription)")
             statusItem.bridgeAvailable = false
         }
+        registerHotkeys()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
         // Never leave mics muted without the app running to show it.
         if state.effectiveMuted { mic.apply(muted: false) }
+    }
+
+    private func registerHotkeys() {
+        let toggleOK = hotkeys.register(id: 1, shortcut: prefs.toggleShortcut,
+                                        onDown: { [weak self] in self?.state.toggle() },
+                                        onUp: {})
+        let pttOK = hotkeys.register(id: 2, shortcut: prefs.pttShortcut,
+                                     onDown: { [weak self] in self?.state.pttBegin(source: "hotkey") },
+                                     onUp: { [weak self] in self?.state.pttEnd(source: "hotkey") })
+        if !toggleOK || !pttOK { log.error("A global shortcut could not be registered; it may be in use by another app.") }
     }
 
     private func showSettings() {
