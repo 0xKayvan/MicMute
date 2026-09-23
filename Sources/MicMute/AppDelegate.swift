@@ -1,0 +1,60 @@
+import AppKit
+import MicMuteCore
+import os
+
+@MainActor
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    private let log = Logger(subsystem: "xyz.kayvan.micmute", category: "app")
+    private let prefs = Preferences()
+    private var mic: MicController!
+    private var state: MuteState!
+    private var router: CommandRouter!
+    private var bridge: BridgeServer!
+    private var statusItem: StatusItemController!
+    private var feedback: Feedback!
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        let mic = MicController(audio: CoreAudioSystem())
+        self.mic = mic
+        // Start muted only if the mics already are (e.g. after a crash), so the icon tells the truth.
+        state = MuteState(initiallyMuted: mic.allMuted) { mic.apply(muted: $0) }
+        if state.effectiveMuted { mic.apply(muted: true) }
+
+        feedback = Feedback(prefs: prefs)
+        router = CommandRouter(state: state)
+        statusItem = StatusItemController(state: state, mic: mic, onSettings: { [weak self] in self?.showSettings() })
+        bridge = BridgeServer(initialState: BridgeMessage.state(state.snapshot))
+
+        state.addObserver { [weak self] change in
+            guard let self else { return }
+            statusItem.update()
+            bridge.broadcast(BridgeMessage.state(change.snapshot))
+            feedback.play(change)
+        }
+
+        bridge.onCommand = { [weak self] command, client in
+            MainActor.assumeIsolated { self?.router.handle(command, from: client) }
+        }
+        bridge.onClientDisconnected = { [weak self] client in
+            MainActor.assumeIsolated { self?.router.clientDisconnected(client) }
+        }
+        bridge.onStatusChange = { [weak self] listening in
+            MainActor.assumeIsolated { self?.statusItem.bridgeAvailable = listening }
+        }
+        do {
+            try bridge.start()
+        } catch {
+            log.error("Bridge failed to start: \(error.localizedDescription)")
+            statusItem.bridgeAvailable = false
+        }
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        // Never leave mics muted without the app running to show it.
+        if state.effectiveMuted { mic.apply(muted: false) }
+    }
+
+    private func showSettings() {
+        // Implemented in Task 9.
+    }
+}

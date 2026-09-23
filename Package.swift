@@ -6,6 +6,7 @@ let package = Package(
     platforms: [.macOS(.v13)],
     targets: [
         .target(name: "MicMuteCore"),
+        .executableTarget(name: "MicMute", dependencies: ["MicMuteCore"]),
         .testTarget(name: "MicMuteCoreTests", dependencies: ["MicMuteCore"]),
     ],
     swiftLanguageModes: [.v5]
