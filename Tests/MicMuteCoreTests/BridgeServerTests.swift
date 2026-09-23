@@ -55,6 +55,13 @@ import MicMuteCore
         var disconnectIterator = disconnects.makeAsyncIterator()
         #expect(await disconnectIterator.next() != nil)
 
+        // A second client that is never explicitly closed should still be
+        // reported as disconnected once the server stops.
+        let task2 = URLSession.shared.webSocketTask(with: URL(string: "ws://127.0.0.1:\(port)")!)
+        task2.resume()
+        _ = try await task2.receive() // wait for the initial state push, confirming the server has accepted it
+
         server.stop()
+        #expect(await disconnectIterator.next() != nil)
     }
 }

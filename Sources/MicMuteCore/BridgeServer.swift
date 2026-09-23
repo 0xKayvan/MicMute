@@ -18,13 +18,24 @@ public final class BridgeServer {
     private var connections: [ObjectIdentifier: NWConnection] = [:]
     private var currentState: Data
 
+    /// `port` is read from arbitrary threads (e.g. from inside `onStatusChange`,
+    /// which runs on `queue`, as well as from callers outside `queue`), so it is
+    /// guarded by its own lock rather than by `queue` to avoid a `queue.sync`
+    /// deadlock when read from `queue` itself.
+    private let portLock = NSLock()
+    private var boundPort: UInt16?
+
     public init(port: UInt16 = defaultPort, initialState: Data, queue: DispatchQueue = .main) {
         requestedPort = port
         currentState = initialState
         self.queue = queue
     }
 
-    public var port: UInt16? { listener?.port?.rawValue }
+    public var port: UInt16? {
+        portLock.lock()
+        defer { portLock.unlock() }
+        return boundPort
+    }
 
     public func start() throws {
         let websocket = NWProtocolWebSocket.Options()
@@ -36,31 +47,41 @@ public final class BridgeServer {
 
         let port = requestedPort == 0 ? NWEndpoint.Port.any : NWEndpoint.Port(rawValue: requestedPort)!
         let listener = try NWListener(using: parameters, on: port)
-        listener.newConnectionHandler = { [weak self] connection in self?.accept(connection) }
-        listener.stateUpdateHandler = { [weak self] state in
-            guard let self else { return }
-            switch state {
-            case .ready:
-                onStatusChange?(true)
-            case .failed(let error):
-                log.error("Bridge listener failed: \(error.localizedDescription)")
-                onStatusChange?(false)
-                listener.cancel()
-            default:
-                break
+
+        queue.async { [self] in
+            listener.newConnectionHandler = { [weak self] connection in self?.accept(connection) }
+            listener.stateUpdateHandler = { [weak self, weak listener] state in
+                guard let self else { return }
+                switch state {
+                case .ready:
+                    setBoundPort(listener?.port?.rawValue)
+                    onStatusChange?(true)
+                case .failed(let error):
+                    log.error("Bridge listener failed: \(error.localizedDescription)")
+                    onStatusChange?(false)
+                    listener?.cancel()
+                default:
+                    break
+                }
             }
+            self.listener = listener
+            listener.start(queue: queue)
         }
-        self.listener = listener
-        listener.start(queue: queue)
     }
 
     public func stop() {
         queue.async { [self] in
+            Array(connections.keys).forEach(drop)
             listener?.cancel()
             listener = nil
-            connections.values.forEach { $0.cancel() }
-            connections.removeAll()
+            setBoundPort(nil)
         }
+    }
+
+    private func setBoundPort(_ value: UInt16?) {
+        portLock.lock()
+        boundPort = value
+        portLock.unlock()
     }
 
     public func broadcast(_ state: Data) {
