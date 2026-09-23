@@ -14,6 +14,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var feedback: Feedback!
     private let hotkeys = HotkeyManager()
     private var settings: SettingsWindowController?
+    private var sigtermSource: DispatchSourceSignal?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let mic = MicController(audio: CoreAudioSystem())
@@ -50,6 +51,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             statusItem.bridgeAvailable = false
         }
         registerHotkeys()
+        installSIGTERMHandler()
+    }
+
+    /// SIGTERM (e.g. `pkill`, logout) would otherwise kill the process without
+    /// `applicationWillTerminate`, leaving mics muted. Route it through a normal quit.
+    private func installSIGTERMHandler() {
+        signal(SIGTERM, SIG_IGN)
+        let source = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
+        source.setEventHandler { NSApp.terminate(nil) }
+        source.resume()
+        sigtermSource = source
     }
 
     func applicationWillTerminate(_ notification: Notification) {

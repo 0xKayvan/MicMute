@@ -7,6 +7,15 @@ ifeq ($(shell xcode-select -p 2>/dev/null),$(CLT))
 TEST_FLAGS := -Xswiftc -F -Xswiftc $(CLT_FW) -Xlinker -F -Xlinker $(CLT_FW) -Xlinker -rpath -Xlinker $(CLT_FW) -Xswiftc -Xfrontend -Xswiftc -disable-cross-import-overlays
 endif
 
+# Quit gracefully so MicMute unmutes on the way out; SIGTERM only as a last resort.
+define quit_micmute
+	@if pgrep -xq MicMute; then \
+		osascript -e 'tell application "MicMute" to quit' >/dev/null 2>&1 || true; \
+		for i in 1 2 3 4 5 6 7 8 9 10; do pgrep -xq MicMute || break; sleep 0.3; done; \
+		pkill -x MicMute || true; \
+	fi
+endef
+
 .PHONY: test build app run install clean plugin plugin-test plugin-link
 
 test:
@@ -23,11 +32,11 @@ app: build
 	codesign --force --sign - $(APP)
 
 run: app
-	-pkill -x MicMute
+	$(quit_micmute)
 	open $(APP)
 
 install: app
-	-pkill -x MicMute
+	$(quit_micmute)
 	rm -rf /Applications/MicMute.app
 	cp -R $(APP) /Applications/MicMute.app
 	open /Applications/MicMute.app
