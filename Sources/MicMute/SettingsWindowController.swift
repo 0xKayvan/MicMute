@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 @MainActor
-final class SettingsWindowController {
+final class SettingsWindowController: NSObject, NSWindowDelegate {
     private let window: NSWindow
     private let model: SettingsModel
 
@@ -12,6 +12,8 @@ final class SettingsWindowController {
         window.title = "MicMute Settings"
         window.styleMask = [.titled, .closable]
         window.isReleasedWhenClosed = false
+        super.init()
+        window.delegate = self
     }
 
     func show() {
@@ -19,5 +21,10 @@ final class SettingsWindowController {
         NSApp.activate(ignoringOtherApps: true)
         window.center()
         window.makeKeyAndOrderFront(nil)
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        // A recording left in progress would otherwise leave global hotkeys suspended forever.
+        model.endRecording()
     }
 }
