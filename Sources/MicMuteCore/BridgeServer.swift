@@ -47,8 +47,10 @@ public final class BridgeServer {
         parameters.requiredInterfaceType = .loopback
         parameters.allowLocalEndpointReuse = true
 
+        // Bind to 127.0.0.1 explicitly (not *:port) in addition to the loopback interface filter.
         let port = requestedPort == 0 ? NWEndpoint.Port.any : NWEndpoint.Port(rawValue: requestedPort)!
-        let listener = try NWListener(using: parameters, on: port)
+        parameters.requiredLocalEndpoint = .hostPort(host: .ipv4(.loopback), port: port)
+        let listener = try NWListener(using: parameters)
 
         queue.async { [self] in
             listener.newConnectionHandler = { [weak self] connection in self?.accept(connection) }
