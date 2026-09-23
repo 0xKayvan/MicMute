@@ -1,4 +1,5 @@
 import Carbon.HIToolbox
+import Foundation
 import Testing
 import MicMuteCore
 
