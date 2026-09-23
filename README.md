@@ -14,7 +14,7 @@ A macOS menu bar app that mutes **every** microphone at once — built-in, USB, 
 ## Requirements
 
 - macOS 13+, Swift toolchain (Command Line Tools are enough; Xcode not required).
-- Stream Deck 7.1+ and Node.js 20+ (for building the plugin).
+- Stream Deck 7.1+ and Node.js 20+ (for building the plugin). The plugin itself runs on Stream Deck's bundled Node.js 24; your Node is only needed to build it.
 
 ## Build & install
 
