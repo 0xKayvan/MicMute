@@ -108,4 +108,48 @@ describe("BridgeClient", () => {
     vi.advanceTimersByTime(10000);
     expect(FakeSocket.instances).toHaveLength(1);
   });
+
+  it("start() twice only opens one socket", () => {
+    const client = makeClient();
+    client.start();
+    client.start();
+    expect(FakeSocket.instances).toHaveLength(1);
+  });
+
+  it("start() during a pending retry does not add an extra socket when the timer fires", () => {
+    const client = makeClient();
+    client.start();
+    latest().close(); // schedules a reconnect
+    expect(FakeSocket.instances).toHaveLength(1);
+    client.start(); // no-op: a retry is already pending
+    expect(FakeSocket.instances).toHaveLength(1);
+    vi.advanceTimersByTime(2000);
+    expect(FakeSocket.instances).toHaveLength(2);
+  });
+
+  it("ignores a late close from a stale socket after stop() then start()", () => {
+    const client = makeClient();
+    const seen: unknown[] = [];
+    client.onChange((s) => seen.push(s));
+
+    client.start();
+    const oldSocket = latest();
+    client.stop();
+    client.start();
+    const newSocket = latest();
+    expect(newSocket).not.toBe(oldSocket);
+
+    newSocket.open();
+    newSocket.receive('{"muted":true,"pttActive":false,"type":"state"}');
+    expect(client.state).toEqual({ muted: true, pttActive: false });
+
+    seen.length = 0;
+    oldSocket.onclose?.(); // late event from the already-detached old socket
+
+    expect(client.state).toEqual({ muted: true, pttActive: false });
+    expect(seen).toEqual([]);
+    expect(FakeSocket.instances).toHaveLength(2);
+    vi.advanceTimersByTime(10000);
+    expect(FakeSocket.instances).toHaveLength(2);
+  });
 });

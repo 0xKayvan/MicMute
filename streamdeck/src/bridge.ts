@@ -55,6 +55,8 @@ export class BridgeClient {
 
   start(): void {
     this.stopped = false;
+    // Idempotent: a live/connecting socket or a pending retry already covers this.
+    if (this.socket || this.retryTimer) return;
     this.connect();
   }
 
@@ -62,7 +64,10 @@ export class BridgeClient {
     this.stopped = true;
     clearTimeout(this.retryTimer);
     this.retryTimer = undefined;
-    this.socket?.close();
+    const socket = this.socket;
+    this.socket = undefined;
+    socket?.close();
+    this.setState(null);
   }
 
   onChange(listener: (state: MicState | null) => void): () => void {
@@ -80,11 +85,13 @@ export class BridgeClient {
     const socket = this.createSocket(this.url);
     this.socket = socket;
     socket.onmessage = (event) => {
+      if (this.socket !== socket) return; // stale event from a since-replaced socket
       const state = parseState(String(event.data));
       if (state) this.setState(state);
     };
     socket.onclose = () => {
-      if (this.socket === socket) this.socket = undefined;
+      if (this.socket !== socket) return; // already detached (e.g. stop()); ignore late close
+      this.socket = undefined;
       this.setState(null);
       this.scheduleReconnect();
     };
