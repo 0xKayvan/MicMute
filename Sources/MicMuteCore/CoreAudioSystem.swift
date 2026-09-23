@@ -105,9 +105,17 @@ public final class CoreAudioSystem: AudioSystem {
         let system = AudioObjectID(kAudioObjectSystemObject)
         var address = Self.address(kAudioHardwarePropertyDevices, scope: kAudioObjectPropertyScopeGlobal)
         var size: UInt32 = 0
-        guard AudioObjectGetPropertyDataSize(system, &address, 0, nil, &size) == noErr else { return [] }
+        let sizeStatus = AudioObjectGetPropertyDataSize(system, &address, 0, nil, &size)
+        guard sizeStatus == noErr else {
+            log.error("Getting device list size failed: \(sizeStatus)")
+            return []
+        }
         var ids = [AudioObjectID](repeating: 0, count: Int(size) / MemoryLayout<AudioObjectID>.size)
-        guard AudioObjectGetPropertyData(system, &address, 0, nil, &size, &ids) == noErr else { return [] }
+        let status = AudioObjectGetPropertyData(system, &address, 0, nil, &size, &ids)
+        guard status == noErr else {
+            log.error("Getting device list failed: \(status)")
+            return []
+        }
         return ids
     }
 
@@ -117,7 +125,11 @@ public final class CoreAudioSystem: AudioSystem {
         guard AudioObjectGetPropertyDataSize(id, &address, 0, nil, &size) == noErr, size > 0 else { return 0 }
         let raw = UnsafeMutableRawPointer.allocate(byteCount: Int(size), alignment: MemoryLayout<AudioBufferList>.alignment)
         defer { raw.deallocate() }
-        guard AudioObjectGetPropertyData(id, &address, 0, nil, &size, raw) == noErr else { return 0 }
+        let status = AudioObjectGetPropertyData(id, &address, 0, nil, &size, raw)
+        guard status == noErr else {
+            log.error("Getting stream configuration for device \(id) failed: \(status)")
+            return 0
+        }
         let buffers = UnsafeMutableAudioBufferListPointer(raw.assumingMemoryBound(to: AudioBufferList.self))
         return buffers.reduce(0) { $0 + Int($1.mNumberChannels) }
     }
@@ -140,7 +152,11 @@ public final class CoreAudioSystem: AudioSystem {
         var address = Self.address(selector, element: element)
         var value: T = 0
         var size = UInt32(MemoryLayout<T>.size)
-        guard AudioObjectGetPropertyData(id, &address, 0, nil, &size, &value) == noErr else { return nil }
+        let status = AudioObjectGetPropertyData(id, &address, 0, nil, &size, &value)
+        guard status == noErr else {
+            log.error("Getting property \(selector) element \(element) on device \(id) failed: \(status)")
+            return nil
+        }
         return value
     }
 
