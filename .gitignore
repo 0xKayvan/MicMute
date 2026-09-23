@@ -6,3 +6,5 @@ node_modules/
 streamdeck/**/bin/
 *.streamDeckPlugin
 .DS_Store
+streamdeck/dist/
+streamdeck/*.sdPlugin/logs/
