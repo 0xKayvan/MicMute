@@ -11,7 +11,10 @@ public final class CoreAudioSystem: AudioSystem {
     public var onChange: (() -> Void)?
 
     private let log = Logger(subsystem: "xyz.kayvan.micmute", category: "audio")
+    /// Devices with mute/volume listeners.
     private var watchedDevices: Set<DeviceID> = []
+    /// Devices with an input-scope stream-configuration listener (every device, input or not).
+    private var streamWatchedDevices: Set<DeviceID> = []
     private lazy var listener: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
         MainActor.assumeIsolated { self?.handleChange() }
     }
@@ -78,17 +81,28 @@ public final class CoreAudioSystem: AudioSystem {
         onChange?()
     }
 
-    /// Adds mute/volume listeners to input devices we haven't seen yet. Listeners on removed
-    /// devices disappear with the device, so we only need to forget their IDs.
+    /// Adds mute/volume listeners to input devices we haven't seen yet, and a stream-configuration
+    /// listener to every device so one whose input stream appears later (e.g. Bluetooth switching
+    /// to its mic profile) is picked up. Listeners on removed devices disappear with the device,
+    /// so we only need to forget their IDs; a device that merely loses its input stream keeps
+    /// its listeners and stays in `watchedDevices`, avoiding duplicate registrations.
     private func watchInputDevices() {
-        let current = Set(inputDeviceIDs())
-        for id in current.subtracting(watchedDevices) {
+        let all = Set(allDeviceIDs())
+        for id in all.subtracting(streamWatchedDevices) {
+            var address = Self.address(kAudioDevicePropertyStreamConfiguration)
+            let status = AudioObjectAddPropertyListenerBlock(id, &address, .main, listener)
+            if status != noErr { log.error("Stream configuration listener on device \(id) failed: \(status)") }
+        }
+        streamWatchedDevices = all
+
+        let inputs = Set(inputDeviceIDs())
+        for id in inputs.subtracting(watchedDevices) {
             for selector in [kAudioDevicePropertyMute, kAudioDevicePropertyVolumeScalar] {
                 var address = Self.address(selector, element: kAudioObjectPropertyElementWildcard)
                 AudioObjectAddPropertyListenerBlock(id, &address, .main, listener)
             }
         }
-        watchedDevices = current
+        watchedDevices = watchedDevices.intersection(all).union(inputs)
     }
 
     // MARK: - HAL helpers
