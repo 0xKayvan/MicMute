@@ -70,6 +70,45 @@ import MicMuteCore
         #expect(audio.devices[1]?.muted == true)
     }
 
+    @Test func muteControlDeviceUnpluggedWhileMutedComesBackLive() {
+        let audio = FakeAudioSystem()
+        audio.add(1)
+        audio.add(2, name: "USB Mic")
+        let mic = MicController(audio: audio)
+        mic.apply(muted: true)
+        audio.remove(2)
+        mic.apply(muted: false)
+        // CoreAudio restores the last (muted) state on replug.
+        audio.add(2, name: "USB Mic", muted: true)
+        #expect(audio.devices[2]?.muted == false)
+        // Forgotten once restored: a later external mute is left alone.
+        audio.externallySet(2, muted: true)
+        #expect(audio.devices[2]?.muted == true)
+    }
+
+    @Test func volumeDeviceUnpluggedWhileMutedComesBackAtSavedVolume() {
+        let audio = FakeAudioSystem()
+        audio.add(1)
+        audio.add(2, name: "USB Mic", canMute: false, volume: 0.6)
+        let mic = MicController(audio: audio)
+        mic.apply(muted: true)
+        #expect(audio.devices[2]?.volume == 0)
+        audio.remove(2)
+        mic.apply(muted: false)
+        audio.add(2, name: "USB Mic", canMute: false, volume: 0)
+        #expect(audio.devices[2]?.volume == 0.6)
+        audio.externallySet(2, volume: 0)
+        #expect(audio.devices[2]?.volume == 0)
+    }
+
+    @Test func externallyMutedDeviceWasNeverRecordedSoReplugLeavesItAlone() {
+        let audio = FakeAudioSystem()
+        let mic = MicController(audio: audio)
+        mic.apply(muted: false)
+        audio.add(1, muted: true)
+        #expect(audio.devices[1]?.muted == true)
+    }
+
     @Test func reportsDeviceStatuses() {
         let audio = FakeAudioSystem()
         audio.add(1, name: "Built-in")

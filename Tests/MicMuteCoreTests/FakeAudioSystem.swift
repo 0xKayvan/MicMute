@@ -14,8 +14,14 @@ final class FakeAudioSystem: AudioSystem {
     var devices: [DeviceID: Device] = [:]
     var onChange: (() -> Void)?
 
-    func add(_ id: DeviceID, name: String = "Mic", canMute: Bool = true, canSetVolume: Bool = true, volume: Float = 1) {
-        devices[id] = Device(name: name, canMute: canMute, canSetVolume: canSetVolume, volume: volume)
+    func add(_ id: DeviceID, name: String = "Mic", canMute: Bool = true, canSetVolume: Bool = true, muted: Bool = false, volume: Float = 1) {
+        devices[id] = Device(name: name, canMute: canMute, canSetVolume: canSetVolume, muted: muted, volume: volume)
+        onChange?()
+    }
+
+    /// Simulates unplugging a device.
+    func remove(_ id: DeviceID) {
+        devices[id] = nil
         onChange?()
     }
 

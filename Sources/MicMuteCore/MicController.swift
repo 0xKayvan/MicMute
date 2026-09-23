@@ -28,7 +28,12 @@ public struct DeviceStatus: Equatable, Sendable {
 @MainActor
 public final class MicController {
     private let audio: AudioSystem
+    /// Volume-fallback devices MicMute zeroed, by UID, with the volume to restore.
     private var savedVolumes: [String: Float] = [:]
+    /// UIDs of devices MicMute muted via their mute control and has not yet unmuted.
+    /// Survives unplugging: CoreAudio restores a device's last mute/volume on replug, so a
+    /// device that left while muted is unmuted/restored when it returns after the user unmuted.
+    private var mutedUIDs: Set<String> = []
     public private(set) var desiredMuted = false
 
     public init(audio: AudioSystem) {
@@ -57,13 +62,27 @@ public final class MicController {
     }
 
     private func enforce() {
-        guard desiredMuted else { return }
-        audio.inputDeviceIDs().forEach { apply(true, to: $0) }
+        if desiredMuted {
+            audio.inputDeviceIDs().forEach { apply(true, to: $0) }
+        } else {
+            // Only devices MicMute itself muted and never got to restore (e.g. unplugged while
+            // muted); anything else the user muted externally is left alone.
+            audio.inputDeviceIDs()
+                .filter { let uid = audio.uid(of: $0); return mutedUIDs.contains(uid) || savedVolumes[uid] != nil }
+                .forEach { apply(false, to: $0) }
+        }
     }
 
     private func apply(_ muted: Bool, to id: DeviceID) {
         if audio.canSetMute(id) {
-            if audio.isMuted(id) != muted { audio.setMuted(id, muted) }
+            let uid = audio.uid(of: id)
+            if muted {
+                if !audio.isMuted(id), audio.setMuted(id, true) { mutedUIDs.insert(uid) }
+            } else {
+                // Forget before writing: the write re-enters enforce() via onChange.
+                mutedUIDs.remove(uid)
+                if audio.isMuted(id), !audio.setMuted(id, false) { mutedUIDs.insert(uid) }
+            }
         } else if audio.canSetVolume(id) {
             muted ? muteByVolume(id) : unmuteByVolume(id)
         }
@@ -77,8 +96,10 @@ public final class MicController {
     }
 
     private func unmuteByVolume(_ id: DeviceID) {
-        if let saved = savedVolumes.removeValue(forKey: audio.uid(of: id)) {
-            audio.setVolume(id, saved)
+        let uid = audio.uid(of: id)
+        if let saved = savedVolumes.removeValue(forKey: uid) {
+            // Forget before writing (the write re-enters enforce()); keep it if the write fails.
+            if !audio.setVolume(id, saved) { savedVolumes[uid] = saved }
         } else if audio.volume(id) == 0 {
             audio.setVolume(id, 1)
         }
