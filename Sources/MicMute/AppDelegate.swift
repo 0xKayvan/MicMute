@@ -13,6 +13,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: StatusItemController!
     private var feedback: Feedback!
     private let hotkeys = HotkeyManager()
+    private var settings: SettingsWindowController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let mic = MicController(audio: CoreAudioSystem())
@@ -67,6 +68,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func showSettings() {
-        // Implemented in Task 9.
+        if settings == nil {
+            let model = SettingsModel(
+                prefs: prefs,
+                onShortcutsChanged: { [weak self] in self?.registerHotkeys() },
+                onRecordingChanged: { [weak self] recording in
+                    if recording { self?.hotkeys.unregisterAll() } else { self?.registerHotkeys() }
+                }
+            )
+            settings = SettingsWindowController(model: model)
+        }
+        settings?.show()
     }
 }
