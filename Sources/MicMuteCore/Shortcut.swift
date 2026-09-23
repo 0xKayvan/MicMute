@@ -23,9 +23,10 @@ public struct Shortcut: Codable, Equatable, Sendable {
     public static let defaultToggle = Shortcut(keyCode: UInt32(kVK_ANSI_M), carbonModifiers: UInt32(controlKey | optionKey))
     public static let defaultPushToTalk = Shortcut(keyCode: UInt32(kVK_Space), carbonModifiers: UInt32(controlKey | optionKey))
 
-    /// Plain keys without modifiers would swallow normal typing; function keys are fine alone.
+    /// Plain or shift-only keys would swallow normal typing (e.g. capitals), so non-function
+    /// keys need at least one of ⌃/⌥/⌘; function keys are fine alone.
     public var isValid: Bool {
-        carbonModifiers != 0 || Self.functionKeyNames[Int(keyCode)] != nil
+        carbonModifiers & UInt32(controlKey | optionKey | cmdKey) != 0 || Self.functionKeyNames[Int(keyCode)] != nil
     }
 
     public var modifierSymbols: String {

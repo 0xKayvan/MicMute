@@ -24,6 +24,9 @@ import MicMuteCore
 
     @Test func requiresModifierUnlessFunctionKey() {
         #expect(!Shortcut(keyCode: UInt32(kVK_ANSI_M), carbonModifiers: 0).isValid)
+        #expect(!Shortcut(keyCode: UInt32(kVK_ANSI_M), carbonModifiers: UInt32(shiftKey)).isValid)
+        #expect(Shortcut(keyCode: UInt32(kVK_ANSI_M), carbonModifiers: UInt32(shiftKey | cmdKey)).isValid)
+        #expect(Shortcut(keyCode: UInt32(kVK_F5), carbonModifiers: UInt32(shiftKey)).isValid)
         #expect(Shortcut(keyCode: UInt32(kVK_F5), carbonModifiers: 0).isValid)
         #expect(Shortcut.defaultToggle.isValid)
     }
