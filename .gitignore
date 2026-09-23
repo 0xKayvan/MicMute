@@ -1,0 +1,8 @@
+.build/
+*.app
+build/
+.swiftpm/
+node_modules/
+streamdeck/**/bin/
+*.streamDeckPlugin
+.DS_Store
