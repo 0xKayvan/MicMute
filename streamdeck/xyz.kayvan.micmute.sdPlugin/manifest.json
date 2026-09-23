@@ -1,0 +1,41 @@
+{
+  "$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
+  "UUID": "xyz.kayvan.micmute",
+  "Name": "MicMute",
+  "Version": "0.1.0.0",
+  "Author": "Kayvan",
+  "Description": "Mute and unmute all microphones through the MicMute menu bar app.",
+  "Category": "MicMute",
+  "CategoryIcon": "imgs/action",
+  "Icon": "imgs/plugin",
+  "CodePath": "bin/plugin.js",
+  "SDKVersion": 2,
+  "Nodejs": { "Version": "24" },
+  "OS": [{ "Platform": "mac", "MinimumVersion": "13" }],
+  "Software": { "MinimumVersion": "7.1" },
+  "Actions": [
+    {
+      "UUID": "xyz.kayvan.micmute.toggle",
+      "Name": "Toggle Mute",
+      "Tooltip": "Mute or unmute all microphones",
+      "Icon": "imgs/action",
+      "Controllers": ["Keypad"],
+      "DisableAutomaticStates": true,
+      "SupportedInMultiActions": false,
+      "States": [{ "Image": "imgs/key-live" }, { "Image": "imgs/key-muted" }]
+    },
+    {
+      "UUID": "xyz.kayvan.micmute.ptt",
+      "Name": "Push to Talk",
+      "Tooltip": "Hold to unmute while held",
+      "Icon": "imgs/action",
+      "Controllers": ["Keypad"],
+      "DisableAutomaticStates": true,
+      "SupportedInMultiActions": false,
+      "States": [
+        { "Image": "imgs/key-live", "Title": "PTT" },
+        { "Image": "imgs/key-muted", "Title": "PTT" }
+      ]
+    }
+  ]
+}

@@ -7,7 +7,7 @@ ifeq ($(shell xcode-select -p 2>/dev/null),$(CLT))
 TEST_FLAGS := -Xswiftc -F -Xswiftc $(CLT_FW) -Xlinker -F -Xlinker $(CLT_FW) -Xlinker -rpath -Xlinker $(CLT_FW) -Xswiftc -Xfrontend -Xswiftc -disable-cross-import-overlays
 endif
 
-.PHONY: test build app run install clean
+.PHONY: test build app run install clean plugin plugin-test plugin-link
 
 test:
 	swift test $(TEST_FLAGS)
@@ -34,3 +34,12 @@ install: app
 
 clean:
 	rm -rf .build build
+
+plugin:
+	cd streamdeck && npm run build && npm run validate
+
+plugin-test:
+	cd streamdeck && npm test
+
+plugin-link: plugin
+	cd streamdeck && (npm run link || true) && npm run restart
