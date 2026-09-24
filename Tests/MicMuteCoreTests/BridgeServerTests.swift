@@ -1,4 +1,5 @@
 import Foundation
+import Network
 import Testing
 @testable import MicMuteCore
 
@@ -99,6 +100,68 @@ import Testing
         case .success(let message): Issue.record("Origin handshake was accepted: \(String(describing: text(message)))")
         case .failure(let error): #expect(!(error is TimedOut), "Origin handshake neither failed nor succeeded in time")
         }
+    }
+
+    /// Raw TCP client: sends `chunks` with a pause between them, returns what the server sent back
+    /// (or nil if nothing arrived within the timeout).
+    func rawExchange(port: UInt16, chunks: [String]) async -> String? {
+        let connection = NWConnection(host: "127.0.0.1", port: NWEndpoint.Port(rawValue: port)!, using: .tcp)
+        let queue = DispatchQueue(label: "raw-client")
+        connection.start(queue: queue)
+        defer { connection.cancel() }
+        for (index, chunk) in chunks.enumerated() {
+            if index > 0 { try? await Task.sleep(nanoseconds: 200_000_000) }
+            connection.send(content: Data(chunk.utf8), completion: .idempotent)
+        }
+        return await withTaskGroup(of: String?.self) { group in
+            group.addTask {
+                await withCheckedContinuation { continuation in
+                    connection.receive(minimumIncompleteLength: 1, maximumLength: 4096) { data, _, _, _ in
+                        continuation.resume(returning: data.map { String(decoding: $0, as: UTF8.self) })
+                    }
+                }
+            }
+            group.addTask {
+                try? await Task.sleep(nanoseconds: 5_000_000_000)
+                return nil
+            }
+            let first = await group.next()!
+            group.cancelAll()
+            connection.cancel()
+            return first
+        }
+    }
+
+    @Test func completesHandshakeSplitAcrossTCPReads() async throws {
+        let server = BridgeServer(
+            port: 0,
+            initialState: BridgeMessage.state(.init(muted: true, pttActive: false)),
+            queue: DispatchQueue(label: "bridge-split-test")
+        )
+        let port = try await startServer(server)
+        defer { server.stop() }
+
+        let head = "GET / HTTP/1.1\r\nHost: 127.0.0.1:\(port)\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
+            + "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n"
+        let split = head.index(head.startIndex, offsetBy: 40)
+        let response = await rawExchange(port: port, chunks: [String(head[..<split]), String(head[split...])])
+        #expect(response?.hasPrefix("HTTP/1.1 101") == true, "got \(String(describing: response))")
+    }
+
+    @Test func rejectsOriginHeaderArrivingInALaterTCPRead() async throws {
+        let server = BridgeServer(
+            port: 0,
+            initialState: BridgeMessage.state(.init(muted: true, pttActive: false)),
+            queue: DispatchQueue(label: "bridge-split-origin-test")
+        )
+        let port = try await startServer(server)
+        defer { server.stop() }
+
+        let response = await rawExchange(port: port, chunks: [
+            "GET / HTTP/1.1\r\nHost: 127.0.0.1:\(port)\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n",
+            "Origin: https://example.com\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n",
+        ])
+        #expect(response?.hasPrefix("HTTP/1.1 101") != true, "Origin handshake was accepted: \(String(describing: response))")
     }
 
     @Test func originGuardVerdicts() {

@@ -34,6 +34,9 @@ final class OriginGuard: NWProtocolFramerImplementation {
         return hasOrigin ? .reject : .allow
     }
 
+    /// Request bytes consumed so far; handed up to the WebSocket layer once allowed.
+    private var head = Data()
+
     init(framer: NWProtocolFramer.Instance) {}
 
     func start(framer: NWProtocolFramer.Instance) -> NWProtocolFramer.StartResult {
@@ -43,26 +46,31 @@ final class OriginGuard: NWProtocolFramerImplementation {
     }
 
     func handleInput(framer: NWProtocolFramer.Instance) -> Int {
-        var verdict = Verdict.needMoreData
-        var available = 0
-        // Peek only (consume 0 bytes): the WebSocket layer above must still see the request.
-        _ = framer.parseInput(minimumIncompleteLength: 1, maximumLength: Self.maximumHeadLength) { buffer, _ in
-            guard let buffer else { return 0 }
-            available = buffer.count
-            verdict = Self.verdict(for: Data(buffer))
-            return 0
+        // Consume (not peek) each chunk: parseInput only ever shows the first segment when
+        // nothing is consumed, so a request split across TCP reads would otherwise never complete.
+        while true {
+            var chunk = Data()
+            let parsed = framer.parseInput(minimumIncompleteLength: 1, maximumLength: Self.maximumHeadLength - head.count) { buffer, _ in
+                guard let buffer, !buffer.isEmpty else { return 0 }
+                chunk = Data(buffer)
+                return buffer.count
+            }
+            guard parsed, !chunk.isEmpty else { return 0 } // wait for more bytes
+            head.append(chunk)
+            switch Self.verdict(for: head) {
+            case .allow:
+                // Hand the request (plus any frames pipelined after it) up, then get out of the way.
+                framer.deliverInput(data: head, message: NWProtocolFramer.Message(instance: framer), isComplete: false)
+                head = Data()
+                framer.passThroughInput()
+                return 0
+            case .reject:
+                framer.markFailed(error: .posix(.ECONNREFUSED))
+                return 0
+            case .needMoreData:
+                continue
+            }
         }
-        switch verdict {
-        case .allow:
-            // Hand the already-buffered request up, then get out of the way.
-            _ = framer.deliverInputNoCopy(length: available, message: NWProtocolFramer.Message(instance: framer), isComplete: false)
-            framer.passThroughInput()
-        case .reject:
-            framer.markFailed(error: .posix(.ECONNREFUSED))
-        case .needMoreData:
-            return available + 1
-        }
-        return 0
     }
 
     func handleOutput(framer: NWProtocolFramer.Instance, message: NWProtocolFramer.Message, messageLength: Int, isComplete: Bool) {
