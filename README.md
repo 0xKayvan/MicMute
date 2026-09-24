@@ -25,6 +25,8 @@ make install    # builds build/MicMute.app, copies to /Applications, launches
 
 `MicMute --status` (`/Applications/MicMute.app/Contents/MacOS/MicMute --status`) lists each input device and how it's muted.
 
+The app icon lives in `Resources/AppIcon.png`; after replacing it, run `make icon` to regenerate `Resources/AppIcon.icns`.
+
 ## Stream Deck plugin
 
 ```bash

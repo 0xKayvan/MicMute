@@ -16,7 +16,7 @@ define quit_micmute
 	fi
 endef
 
-.PHONY: test build app run install clean plugin plugin-test plugin-link
+.PHONY: test build app run install clean icon plugin plugin-test plugin-link
 
 test:
 	swift test $(TEST_FLAGS)
@@ -29,6 +29,7 @@ app: build
 	mkdir -p $(APP)/Contents/MacOS $(APP)/Contents/Resources
 	cp .build/release/MicMute $(APP)/Contents/MacOS/MicMute
 	cp Resources/Info.plist $(APP)/Contents/Info.plist
+	cp Resources/AppIcon.icns $(APP)/Contents/Resources/AppIcon.icns
 	codesign --force --sign - $(APP)
 
 run: app
@@ -53,3 +54,12 @@ plugin-test:
 plugin-link: plugin
 	@if [ ! -e "$(HOME)/Library/Application Support/com.elgato.StreamDeck/Plugins/xyz.kayvan.micmute.sdPlugin" ]; then cd streamdeck && npm run link; fi
 	cd streamdeck && npm run restart
+
+# Regenerate Resources/AppIcon.icns from Resources/AppIcon.png (1024 px or larger).
+icon:
+	rm -rf build/AppIcon.iconset && mkdir -p build/AppIcon.iconset
+	for size in 16 32 128 256 512; do \
+		sips -z $$size $$size Resources/AppIcon.png --out build/AppIcon.iconset/icon_$${size}x$${size}.png >/dev/null; \
+		sips -z $$((size * 2)) $$((size * 2)) Resources/AppIcon.png --out build/AppIcon.iconset/icon_$${size}x$${size}@2x.png >/dev/null; \
+	done
+	iconutil -c icns build/AppIcon.iconset -o Resources/AppIcon.icns
