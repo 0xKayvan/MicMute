@@ -55,7 +55,8 @@ plugin-link: plugin
 	@if [ ! -e "$(HOME)/Library/Application Support/com.elgato.StreamDeck/Plugins/xyz.kayvan.micmute.sdPlugin" ]; then cd streamdeck && npm run link; fi
 	cd streamdeck && npm run restart
 
-# Regenerate Resources/AppIcon.icns from Resources/AppIcon.png (1024 px or larger).
+# Regenerate the app icon (Resources/AppIcon.icns) and the Stream Deck plugin icon
+# (plugin.png 256 px + @2x) from Resources/AppIcon.png (1024 px or larger).
 icon:
 	rm -rf build/AppIcon.iconset && mkdir -p build/AppIcon.iconset
 	for size in 16 32 128 256 512; do \
@@ -63,3 +64,5 @@ icon:
 		sips -z $$((size * 2)) $$((size * 2)) Resources/AppIcon.png --out build/AppIcon.iconset/icon_$${size}x$${size}@2x.png >/dev/null; \
 	done
 	iconutil -c icns build/AppIcon.iconset -o Resources/AppIcon.icns
+	sips -z 256 256 Resources/AppIcon.png --out streamdeck/xyz.kayvan.micmute.sdPlugin/imgs/plugin.png >/dev/null
+	sips -z 512 512 Resources/AppIcon.png --out streamdeck/xyz.kayvan.micmute.sdPlugin/imgs/plugin@2x.png >/dev/null
