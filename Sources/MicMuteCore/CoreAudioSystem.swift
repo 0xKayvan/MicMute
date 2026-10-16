@@ -2,12 +2,16 @@ import CoreAudio
 import Foundation
 import os
 
-/// CoreAudio HAL implementation of `AudioSystem`. Listener callbacks are delivered on the main queue.
+/// CoreAudio HAL implementation of `AudioSystem`. Listener callbacks arrive on the main queue and are
+/// coalesced into at most one `onChange` per `changeInterval`, so an app rewriting a property in a
+/// tight loop (e.g. browser auto-gain raising a volume-muted mic) can't swamp the main thread.
 ///
 /// Mute/volume use the input scope's main element when it is settable, otherwise each input channel
 /// element (1...n) that is settable — some USB interfaces only expose per-channel controls.
 @MainActor
 public final class CoreAudioSystem: AudioSystem {
+    public static let changeInterval: TimeInterval = 0.1
+
     public var onChange: (() -> Void)?
 
     private let log = Logger(subsystem: "xyz.kayvan.micmute", category: "audio")
@@ -15,8 +19,14 @@ public final class CoreAudioSystem: AudioSystem {
     private var watchedDevices: Set<DeviceID> = []
     /// Devices with an input-scope stream-configuration listener (every device, input or not).
     private var streamWatchedDevices: Set<DeviceID> = []
-    private lazy var listener: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
-        MainActor.assumeIsolated { self?.handleChange() }
+    /// Set when a pending change may have added or removed input devices.
+    private var needsRescan = false
+    private lazy var throttle = ChangeThrottle(interval: Self.changeInterval) { [weak self] in self?.handleChanges() }
+    private lazy var listener: AudioObjectPropertyListenerBlock = { [weak self] count, addresses in
+        let rescan = UnsafeBufferPointer(start: addresses, count: Int(count)).contains {
+            $0.mSelector == kAudioHardwarePropertyDevices || $0.mSelector == kAudioDevicePropertyStreamConfiguration
+        }
+        MainActor.assumeIsolated { self?.changeReported(rescan: rescan) }
     }
 
     public init() {
@@ -76,8 +86,17 @@ public final class CoreAudioSystem: AudioSystem {
 
     // MARK: - Change listening
 
-    private func handleChange() {
-        watchInputDevices()
+    private func changeReported(rescan: Bool) {
+        needsRescan = needsRescan || rescan
+        throttle.request()
+    }
+
+    private func handleChanges() {
+        // Mute/volume changes can't add devices; only rescan (it queries every device) when needed.
+        if needsRescan {
+            needsRescan = false
+            watchInputDevices()
+        }
         onChange?()
     }
 

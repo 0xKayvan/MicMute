@@ -4,6 +4,7 @@ public typealias DeviceID = UInt32
 @MainActor
 public protocol AudioSystem: AnyObject {
     /// Called (on the main queue) when the device list or any input device's mute/volume changes.
+    /// A burst of changes may be coalesced into one call.
     var onChange: (() -> Void)? { get set }
 
     func inputDeviceIDs() -> [DeviceID]
