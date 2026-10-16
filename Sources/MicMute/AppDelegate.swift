@@ -17,10 +17,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var sigtermSource: DispatchSourceSignal?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        let mic = MicController(audio: CoreAudioSystem())
+        let mic = MicController(audio: CoreAudioSystem(), record: prefs.muteRecord)
+        mic.onRecordChange = { [prefs] in prefs.muteRecord = $0 }
         self.mic = mic
-        // Start muted only if the mics already are (e.g. after a crash), so the icon tells the truth.
-        state = MuteState(initiallyMuted: mic.allMuted) { mic.apply(muted: $0) }
+        // Resume a mute the last run never undid (force-quit, crash), so the icon tells the truth.
+        state = MuteState(initiallyMuted: mic.startsMuted) { mic.apply(muted: $0) }
         if state.effectiveMuted { mic.apply(muted: true) }
 
         feedback = Feedback(prefs: prefs)
