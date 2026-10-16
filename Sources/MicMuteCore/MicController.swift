@@ -45,6 +45,22 @@ public struct DeviceStatus: Equatable, Sendable {
     }
 }
 
+/// What MicMute changed on the devices and must undo on unmute, persisted so a relaunch after a
+/// force-quit or crash can finish the job.
+public struct MuteRecord: Codable, Equatable, Sendable {
+    public var muted: Bool
+    /// Devices MicMute muted via their mute control.
+    public var mutedUIDs: Set<String>
+    /// Volume-fallback devices MicMute zeroed, with the volume to restore.
+    public var savedVolumes: [String: Float]
+
+    public init(muted: Bool = false, mutedUIDs: Set<String> = [], savedVolumes: [String: Float] = [:]) {
+        self.muted = muted
+        self.mutedUIDs = mutedUIDs
+        self.savedVolumes = savedVolumes
+    }
+}
+
 /// Applies the desired mute state to every input device and keeps it applied while muted.
 /// Devices without a mute control are muted by setting input volume to 0 and restoring it later.
 @MainActor
@@ -68,11 +84,17 @@ public final class MicController {
     public private(set) var hasMuteWarnings = false
     /// Called when `hasMuteWarnings` changes.
     public var onWarningsChanged: (() -> Void)?
+    /// Called with the current record whenever it changes, to persist it.
+    public var onRecordChange: ((MuteRecord) -> Void)?
+    private var publishedRecord = MuteRecord()
+    /// The previous run's mute state, if it left a record.
+    private let resumedMuted: Bool?
     private let now: () -> TimeInterval
     private let schedule: ChangeThrottle.Schedule
 
     public init(
         audio: AudioSystem,
+        record: MuteRecord? = nil,
         now: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
         schedule: @escaping ChangeThrottle.Schedule = { delay, work in
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { MainActor.assumeIsolated(work) }
@@ -81,6 +103,13 @@ public final class MicController {
         self.audio = audio
         self.now = now
         self.schedule = schedule
+        resumedMuted = record?.muted
+        if let record {
+            desiredMuted = record.muted
+            mutedUIDs = record.mutedUIDs
+            savedVolumes = record.savedVolumes
+            publishedRecord = record
+        }
         audio.onChange = { [weak self] in self?.enforce() }
     }
 
@@ -98,6 +127,7 @@ public final class MicController {
         contestedUIDs = []
         audio.inputDeviceIDs().forEach { apply(muted, to: $0) }
         refreshMuteWarnings()
+        publishRecord()
     }
 
     public var deviceStatuses: [DeviceStatus] {
@@ -112,6 +142,10 @@ public final class MicController {
                                 warnings: warnings(for: id, method: method))
         }
     }
+
+    /// Whether the app should start muted: as the previous run left things if it never got to unmute
+    /// (force-quit, crash), otherwise only if every mic already is muted.
+    public var startsMuted: Bool { resumedMuted ?? allMuted }
 
     /// True when at least one device can be muted and every such device currently is.
     public var allMuted: Bool {
@@ -132,6 +166,14 @@ public final class MicController {
                 .forEach { apply(false, to: $0) }
         }
         refreshMuteWarnings()
+        publishRecord()
+    }
+
+    private func publishRecord() {
+        let record = MuteRecord(muted: desiredMuted, mutedUIDs: mutedUIDs, savedVolumes: savedVolumes)
+        guard record != publishedRecord else { return }
+        publishedRecord = record
+        onRecordChange?(record)
     }
 
     /// Returns whether it had to mute a device that wasn't muted.
