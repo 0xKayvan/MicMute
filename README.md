@@ -6,6 +6,7 @@ A macOS menu bar app that mutes **every** microphone at once — built-in, USB, 
 
 - Menu bar icon: left-click toggles, right-click shows devices, Settings and Quit.
 - Mutes all input devices; mics plugged in while muted are muted immediately. Devices without a hardware mute control are muted by dropping their input volume to 0 (restored on unmute).
+- Says when muting isn't silencing a mic: the icon turns orange and the menu shows ⚠︎ when a mic's lowest volume still passes sound (e.g. RØDE NT-USB Mini: 0…+40 dB) or another app keeps undoing the mute (e.g. a browser call's auto-gain). MicMute keeps re-muting such mics, at most every 100 ms.
 - Global shortcuts (configurable): **⌃⌥M** toggle, **⌃⌥Space** hold-to-talk.
 - Optional mute/unmute sounds, launch at login.
 - Stream Deck: *Toggle Mute* and *Push to Talk* keys that show live state.
