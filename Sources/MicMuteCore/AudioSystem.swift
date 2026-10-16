@@ -18,4 +18,6 @@ public protocol AudioSystem: AnyObject {
     func canSetVolume(_ id: DeviceID) -> Bool
     func volume(_ id: DeviceID) -> Float
     @discardableResult func setVolume(_ id: DeviceID, _ volume: Float) -> Bool
+    /// The gain at volume 0, in dB (-infinity if 0 is silent), or nil if the device doesn't report it.
+    func volumeFloorDecibels(_ id: DeviceID) -> Float?
 }

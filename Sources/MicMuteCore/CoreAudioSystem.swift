@@ -84,6 +84,14 @@ public final class CoreAudioSystem: AudioSystem {
         }
     }
 
+    /// The loudest floor among the elements `setVolume` writes.
+    public func volumeFloorDecibels(_ id: DeviceID) -> Float? {
+        settableElements(id, kAudioDevicePropertyVolumeScalar)
+            .compactMap { decibelRange(id, element: $0)?.mMinimum }
+            .max()
+            .map(Float.init)
+    }
+
     // MARK: - Change listening
 
     private func changeReported(rescan: Bool) {
@@ -191,6 +199,19 @@ public final class CoreAudioSystem: AudioSystem {
             return nil
         }
         return value
+    }
+
+    private func decibelRange(_ id: DeviceID, element: AudioObjectPropertyElement) -> AudioValueRange? {
+        var address = Self.address(kAudioDevicePropertyVolumeRangeDecibels, element: element)
+        guard AudioObjectHasProperty(id, &address) else { return nil }
+        var range = AudioValueRange()
+        var size = UInt32(MemoryLayout<AudioValueRange>.size)
+        let status = AudioObjectGetPropertyData(id, &address, 0, nil, &size, &range)
+        guard status == noErr else {
+            log.error("Getting volume dB range element \(element) on device \(id) failed: \(status)")
+            return nil
+        }
+        return range
     }
 
     private func write<T: Numeric & BitwiseCopyable>(_ id: DeviceID, _ selector: AudioObjectPropertySelector, element: AudioObjectPropertyElement, value: T) -> Bool {

@@ -9,13 +9,16 @@ final class FakeAudioSystem: AudioSystem {
         var canSetVolume: Bool
         var muted = false
         var volume: Float = 1
+        var volumeFloor: Float?
     }
 
     var devices: [DeviceID: Device] = [:]
     var onChange: (() -> Void)?
 
-    func add(_ id: DeviceID, name: String = "Mic", canMute: Bool = true, canSetVolume: Bool = true, muted: Bool = false, volume: Float = 1) {
-        devices[id] = Device(name: name, canMute: canMute, canSetVolume: canSetVolume, muted: muted, volume: volume)
+    func add(_ id: DeviceID, name: String = "Mic", canMute: Bool = true, canSetVolume: Bool = true, muted: Bool = false,
+             volume: Float = 1, volumeFloor: Float? = nil) {
+        devices[id] = Device(name: name, canMute: canMute, canSetVolume: canSetVolume, muted: muted, volume: volume,
+                             volumeFloor: volumeFloor)
         onChange?()
     }
 
@@ -47,6 +50,7 @@ final class FakeAudioSystem: AudioSystem {
 
     func canSetVolume(_ id: DeviceID) -> Bool { devices[id]?.canSetVolume ?? false }
     func volume(_ id: DeviceID) -> Float { devices[id]?.volume ?? 0 }
+    func volumeFloorDecibels(_ id: DeviceID) -> Float? { devices[id]?.volumeFloor }
     func setVolume(_ id: DeviceID, _ volume: Float) -> Bool {
         guard canSetVolume(id) else { return false }
         devices[id]?.volume = volume

@@ -10,6 +10,7 @@ import MicMuteCore
             #expect(!audio.name(of: id).isEmpty)
             _ = audio.canSetMute(id)
             _ = audio.canSetVolume(id)
+            _ = audio.volumeFloorDecibels(id)
             _ = audio.isMuted(id)
             #expect((0...1).contains(audio.volume(id)))
         }
