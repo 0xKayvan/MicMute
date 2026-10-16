@@ -45,3 +45,7 @@ The plugin talks to the app over a WebSocket on `127.0.0.1:52836` (loopback only
 - `Sources/MicMuteCore` — CoreAudio wrapper, mute logic, preferences, WebSocket bridge (unit tested).
 - `Sources/MicMute` — AppKit/SwiftUI app shell.
 - `streamdeck/` — TypeScript Stream Deck plugin.
+
+## License
+
+MicMute is licensed under the [GNU Affero General Public License v3.0](LICENSE).
