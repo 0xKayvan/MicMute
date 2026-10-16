@@ -25,10 +25,13 @@ final class StatusItemController: NSObject {
 
     func update() {
         let muted = state.snapshot.muted
-        let label = muted ? "Microphones muted" : "Microphones live"
+        // Orange instead of red: muted, but some mic may still be heard (details in the menu).
+        let leaky = muted && mic.hasMuteWarnings
+        let label = leaky ? "Microphones muted, but not all are silent" : muted ? "Microphones muted" : "Microphones live"
         var image = NSImage(systemSymbolName: muted ? "mic.slash.fill" : "mic.fill", accessibilityDescription: label)
         if muted {
-            image = image?.withSymbolConfiguration(NSImage.SymbolConfiguration(paletteColors: [.systemRed]))
+            let color: NSColor = leaky ? .systemOrange : .systemRed
+            image = image?.withSymbolConfiguration(NSImage.SymbolConfiguration(paletteColors: [color]))
         } else {
             image?.isTemplate = true
         }
@@ -55,7 +58,8 @@ final class StatusItemController: NSObject {
     private func buildMenu() -> NSMenu {
         let menu = NSMenu()
         let muted = state.snapshot.muted
-        menu.addItem(disabledItem(muted ? "Microphones: Muted" : "Microphones: Live"))
+        let header = !muted ? "Microphones: Live" : mic.hasMuteWarnings ? "Microphones: Muted — ⚠︎ not all silent" : "Microphones: Muted"
+        menu.addItem(disabledItem(header))
         menu.addItem(actionItem(muted ? "Unmute" : "Mute", #selector(toggleClicked)))
         menu.addItem(.separator())
         menu.addItem(disabledItem("Input Devices"))

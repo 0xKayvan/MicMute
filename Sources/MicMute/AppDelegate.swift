@@ -26,6 +26,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         feedback = Feedback(prefs: prefs)
         router = CommandRouter(state: state)
         statusItem = StatusItemController(state: state, mic: mic, onSettings: { [weak self] in self?.showSettings() })
+        mic.onWarningsChanged = { [weak self] in self?.statusItem.update() }
         bridge = BridgeServer(initialState: BridgeMessage.state(state.snapshot))
 
         state.addObserver { [weak self] change in
