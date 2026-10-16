@@ -50,7 +50,7 @@ import MicMuteCore
         #expect(audio.devices[1]?.muted == true)
     }
 
-    @Test func externalVolumeRaiseWhileMutedIsZeroedAndRestoredLater() {
+    @Test func externalVolumeRaiseWhileMutedIsZeroedAndPreMuteLevelRestored() {
         let audio = FakeAudioSystem()
         audio.add(1, canMute: false, volume: 0.5)
         let mic = MicController(audio: audio)
@@ -58,7 +58,21 @@ import MicMuteCore
         audio.externallySet(1, volume: 0.9)
         #expect(audio.devices[1]?.volume == 0)
         mic.apply(muted: false)
-        #expect(audio.devices[1]?.volume == 0.9)
+        #expect(audio.devices[1]?.volume == 0.5)
+    }
+
+    /// An app's auto-gain (e.g. WebRTC in a browser call) keeps raising a volume-muted mic.
+    @Test func repeatedAutoGainRaisesWhileMutedDoNotReplaceRestoreLevel() {
+        let audio = FakeAudioSystem()
+        audio.add(1, canMute: false, volume: 0.42)
+        let mic = MicController(audio: audio)
+        mic.apply(muted: true)
+        for _ in 0..<5 {
+            audio.externallySet(1, volume: 20.0 / 255)
+            #expect(audio.devices[1]?.volume == 0)
+        }
+        mic.apply(muted: false)
+        #expect(audio.devices[1]?.volume == 0.42)
     }
 
     @Test func leavesExternalChangesAloneWhileUnmuted() {

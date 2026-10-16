@@ -91,7 +91,9 @@ public final class MicController {
     private func muteByVolume(_ id: DeviceID) {
         let current = audio.volume(id)
         guard current > 0 else { return }
-        savedVolumes[audio.uid(of: id)] = current
+        // Keep the level from before the mute: raises while muted (e.g. an app's auto-gain) aren't the user's.
+        let uid = audio.uid(of: id)
+        if savedVolumes[uid] == nil { savedVolumes[uid] = current }
         audio.setVolume(id, 0)
     }
 
