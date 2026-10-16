@@ -30,4 +30,12 @@ import MicMuteCore
         #expect(reloaded.toggleShortcut == custom)
         #expect(reloaded.pttShortcut == custom)
     }
+
+    @Test func persistsTheMuteRecord() {
+        let defaults = freshDefaults()
+        #expect(Preferences(defaults: defaults).muteRecord == nil)
+        let record = MuteRecord(muted: true, mutedUIDs: ["BuiltInMicrophoneDevice"], savedVolumes: ["rode": 0.42])
+        Preferences(defaults: defaults).muteRecord = record
+        #expect(Preferences(defaults: defaults).muteRecord == record)
+    }
 }

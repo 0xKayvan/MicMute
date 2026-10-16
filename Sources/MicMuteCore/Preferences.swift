@@ -6,6 +6,7 @@ public final class Preferences {
         static let playSounds = "playSounds"
         static let toggleShortcut = "toggleShortcut"
         static let pttShortcut = "pttShortcut"
+        static let muteRecord = "muteRecord"
     }
 
     private let defaults: UserDefaults
@@ -27,6 +28,12 @@ public final class Preferences {
     public var pttShortcut: Shortcut {
         get { shortcut(Key.pttShortcut) ?? .defaultPushToTalk }
         set { store(newValue, Key.pttShortcut) }
+    }
+
+    /// What MicMute last changed on the devices (see `MuteRecord`); nil before the first mute.
+    public var muteRecord: MuteRecord? {
+        get { defaults.data(forKey: Key.muteRecord).flatMap { try? JSONDecoder().decode(MuteRecord.self, from: $0) } }
+        set { defaults.set(newValue.flatMap { try? JSONEncoder().encode($0) }, forKey: Key.muteRecord) }
     }
 
     private func shortcut(_ key: String) -> Shortcut? {
